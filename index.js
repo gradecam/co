@@ -12,6 +12,25 @@ var slice = Array.prototype.slice;
 module.exports = co['default'] = co.co = co;
 
 /**
+ * This allows a user to provide their own promise library; this is useful
+ * as there are libraries which offer benefits over the ES6 Promise object
+ * but are also API-compatible (or could be easily made to be so).  One
+ * particular benefit of using the same promise is that some libraries
+ * (notably q and bluebird) support long stack traces across multiple
+ * callbacks which is useful for debugging; however, when using a different
+ * promise in the middle (or particularly the end) of the chain breaks
+ * this functionality.
+ *
+ * This is referred to in some libraries as Bring Your Own Promise (BYOP)
+ */
+
+var coPromise = Promise;
+
+co.setPromiseLibrary = function(PromiseLib) {
+    coPromise = PromiseLib;
+};
+
+/**
  * Wrap the given generator `fn` into a
  * function that returns a promise.
  * This is a separate function so that
@@ -36,7 +55,7 @@ co.wrap = function (fn) {
  * and return a promise.
  *
  * @param {Function} fn
- * @return {Promise}
+ * @return {coPromise}
  * @api public
  */
 
@@ -47,7 +66,7 @@ function co(gen) {
   // we wrap everything in a promise to avoid promise chaining,
   // which leads to memory leak errors.
   // see https://github.com/tj/co/issues/180
-  return new Promise(function(resolve, reject) {
+  return new coPromise(function(resolve, reject) {
     if (typeof gen === 'function') gen = gen.apply(ctx, args);
     if (!gen || typeof gen.next !== 'function') return resolve(gen);
 
@@ -55,7 +74,7 @@ function co(gen) {
 
     /**
      * @param {Mixed} res
-     * @return {Promise}
+     * @return {coPromise}
      * @api private
      */
 
@@ -71,7 +90,7 @@ function co(gen) {
 
     /**
      * @param {Error} err
-     * @return {Promise}
+     * @return {coPromise}
      * @api private
      */
 
@@ -90,7 +109,7 @@ function co(gen) {
      * return a promise.
      *
      * @param {Object} ret
-     * @return {Promise}
+     * @return {coPromise}
      * @api private
      */
 
@@ -108,7 +127,7 @@ function co(gen) {
  * Convert a `yield`ed value into a promise.
  *
  * @param {Mixed} obj
- * @return {Promise}
+ * @return {coPromise}
  * @api private
  */
 
@@ -126,13 +145,13 @@ function toPromise(obj) {
  * Convert a thunk to a promise.
  *
  * @param {Function}
- * @return {Promise}
+ * @return {coPromise}
  * @api private
  */
 
 function thunkToPromise(fn) {
   var ctx = this;
-  return new Promise(function (resolve, reject) {
+  return new coPromise(function (resolve, reject) {
     fn.call(ctx, function (err, res) {
       if (err) return reject(err);
       if (arguments.length > 2) res = slice.call(arguments, 1);
@@ -143,23 +162,23 @@ function thunkToPromise(fn) {
 
 /**
  * Convert an array of "yieldables" to a promise.
- * Uses `Promise.all()` internally.
+ * Uses `coPromise.all()` internally.
  *
  * @param {Array} obj
- * @return {Promise}
+ * @return {coPromise}
  * @api private
  */
 
 function arrayToPromise(obj) {
-  return Promise.all(obj.map(toPromise, this));
+  return coPromise.all(obj.map(toPromise, this));
 }
 
 /**
  * Convert an object of "yieldables" to a promise.
- * Uses `Promise.all()` internally.
+ * Uses `coPromise.all()` internally.
  *
  * @param {Object} obj
- * @return {Promise}
+ * @return {coPromise}
  * @api private
  */
 
@@ -173,7 +192,7 @@ function objectToPromise(obj){
     if (promise && isPromise(promise)) defer(promise, key);
     else results[key] = obj[key];
   }
-  return Promise.all(promises).then(function () {
+  return coPromise.all(promises).then(function () {
     return results;
   });
 
